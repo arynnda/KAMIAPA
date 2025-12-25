@@ -1,5 +1,5 @@
 repeat task.wait() until game:IsLoaded() and game:GetService("Players").LocalPlayer
-print("KAMI•APA SAFE")
+print("KAMI•APA")
 
 -- SERVICES
 local Players = game:GetService("Players")
