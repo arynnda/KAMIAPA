@@ -1,42 +1,38 @@
-repeat task.wait() until game:IsLoaded() and game:GetService("Players").LocalPlayer
-print("KAMI•APA")
+repeat task.wait() until game:IsLoaded()
+print("AUTO-GRAB ULTRA LITE")
 
--- SERVICES
+-- ===== SERVICES =====
 local Players = game:GetService("Players")
 local ProximityPromptService = game:GetService("ProximityPromptService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local VirtualUser = game:GetService("VirtualUser")
 local HttpService = game:GetService("HttpService")
 
 local player = Players.LocalPlayer
 
--- SAFE PROMPT FUNCTION (INI PENTING)
-local firePrompt = typeof(fireproximityprompt) == "function"
-	and fireproximityprompt
-	or function() end
+-- ===== CONFIG =====
+getgenv().TARGET_LIST = {
+	"Noobini Pizzanini",
+}
 
--- CONFIG
-getgenv().TARGET_UNITS = getgenv().TARGET_UNITS or {}
-getgenv().GRAB_RADIUS = getgenv().GRAB_RADIUS or 8
-getgenv().WEBHOOK_URL = getgenv().WEBHOOK_URL or ""
-local SPIN_INTERVAL = 5
+getgenv().GRAB_RADIUS = 8
+getgenv().WEBHOOK_URL = "https://discord.com/api/webhooks/1410612798735646802/3thPcm1wsW63a_Qi_mjLSav-WeqOEn7hDGxnW74f5pvJliwh4bSdHONr_kv_jvpQkNJG"
 
--- BASIC
-local function char()
+-- ===== BASIC =====
+local function getChar()
 	return player.Character
 end
 
-local function hrp()
-	local c = char()
+local function getHRP()
+	local c = getChar()
 	return c and c:FindFirstChild("HumanoidRootPart")
 end
 
-local function humanoid()
-	local c = char()
+local function getHumanoid()
+	local c = getChar()
 	return c and c:FindFirstChildOfClass("Humanoid")
 end
 
-local function send(msg)
+local function sendWebhook(msg)
 	if getgenv().WEBHOOK_URL == "" then return end
 	pcall(function()
 		HttpService:PostAsync(
@@ -47,96 +43,91 @@ local function send(msg)
 	end)
 end
 
--- TARGET CHECK
+-- ===== TARGET CHECK =====
 local function isTarget(model)
 	local idx = model:GetAttribute("Index")
 	if not idx then return false end
-	for _,v in ipairs(getgenv().TARGET_UNITS) do
-		if v == idx then return true end
+	for _, n in ipairs(getgenv().TARGET_LIST) do
+		if idx == n then return true end
 	end
 	return false
 end
 
--- STATE
-local currentTarget
-local pendingName
-local lastMoney
+-- ===== STATE =====
+local currentTarget = nil
+local pendingItem = nil
+local lastMoney = nil
+local bought = false
 
--- MONEY DETECT
+-- ===== MONEY DETECT (SANGAT RINGAN) =====
+local MONEY_NAMES = { "Cash","Money","Coins","Coin","Gold","Credits" }
+
 task.spawn(function()
 	local stats = player:WaitForChild("leaderstats")
-	for _,v in ipairs(stats:GetChildren()) do
+	for _, v in ipairs(stats:GetChildren()) do
 		if v:IsA("IntValue") or v:IsA("NumberValue") then
-			lastMoney = v.Value
-			v.Changed:Connect(function(nv)
-				if nv < lastMoney and pendingName then
-					send("🛒 Bought: "..pendingName)
-					currentTarget = nil
-					pendingName = nil
+			for _, n in ipairs(MONEY_NAMES) do
+				if v.Name:lower() == n:lower() then
+					lastMoney = v.Value
+					v.Changed:Connect(function(nv)
+						if nv < lastMoney and pendingItem then
+							sendWebhook(
+								"🛒 **ITEM DIBELI**\n" ..
+								"📦 "..pendingItem.."\n" ..
+								"💰 "..(lastMoney - nv)
+							)
+							bought = true
+							currentTarget = nil
+							pendingItem = nil
+						end
+						lastMoney = nv
+					end)
+					return
 				end
-				lastMoney = nv
-			end)
-			break
+			end
 		end
 	end
 end)
 
--- TARGET SPAWN
+-- ===== SPAWN DETECT (1x SAJA) =====
 workspace.DescendantAdded:Connect(function(obj)
 	if currentTarget then return end
 	if obj:IsA("Model") and isTarget(obj) then
 		currentTarget = obj
-		pendingName = obj:GetAttribute("Index") or obj.Name
+		pendingItem = obj:GetAttribute("Index") or obj.Name
+		bought = false
 	end
 end)
 
--- AUTO PROMPT (ANTI NIL)
+-- ===== PROMPT AUTO FIRE (PALING RINGAN) =====
 ProximityPromptService.PromptShown:Connect(function(prompt)
 	if currentTarget and prompt:IsDescendantOf(currentTarget) then
-		firePrompt(prompt)
+		fireproximityprompt(prompt)
 	end
 end)
 
--- MOVE LOOP
+-- ===== MOVE LOOP (LAMBAT & STABIL) =====
 task.spawn(function()
 	while true do
-		if currentTarget then
+		if currentTarget and currentTarget.Parent and not bought then
 			local part = currentTarget:FindFirstChildWhichIsA("BasePart")
-			local h = humanoid()
-			local r = hrp()
-			if part and h and r then
-				if (r.Position - part.Position).Magnitude > getgenv().GRAB_RADIUS then
-					h:MoveTo(part.Position)
+			local hum = getHumanoid()
+			local hrp = getHRP()
+			if part and hum and hrp then
+				if (hrp.Position - part.Position).Magnitude > getgenv().GRAB_RADIUS then
+					hum:MoveTo(part.Position)
 				end
 			end
 		end
-		task.wait(0.5)
+		task.wait(0.6) -- ⚡ super ringan CPU
 	end
 end)
 
--- AUTO SPIN (PCALL SAFE)
-task.spawn(function()
-	local Packages = ReplicatedStorage:WaitForChild("Packages")
-	local ok, Net = pcall(require, Packages:WaitForChild("Net"))
-	if not ok then return end
-
-	local SpinEvent = Net:RemoteEvent("ChristmasEventService/Spin")
-	local last = 0
-
-	while true do
-		if tick() - last >= SPIN_INTERVAL then
-			pcall(function()
-				SpinEvent:FireServer()
-			end)
-			last = tick()
-		end
-		task.wait(0.5)
-	end
-end)
-
--- ANTI AFK (SAFE)
+-- ===== ANTI AFK =====
 player.Idled:Connect(function()
-	VirtualUser:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+	VirtualUser:Button2Down(Vector2.new(), workspace.CurrentCamera.CFrame)
 	task.wait(1)
-	VirtualUser:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+	VirtualUser:Button2Up(Vector2.new(), workspace.CurrentCamera.CFrame)
 end)
+
+sendWebhook("✅ Auto-Grab ULTRA LITE Aktif")
